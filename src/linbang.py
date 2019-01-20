@@ -32,7 +32,7 @@ class LogisticBang:
         # else:
         #     self._incremental_laplace_approx(row)
         self._incremental_laplace_approx(row)
-        # print(self.average_loss)
+        print(self.average_loss, np.var(self.iHessian[self._prev_ids]))
 
     def _incremental_laplace_approx(self, row):
         self.example_counter += 1
@@ -104,8 +104,9 @@ class LogisticBang:
         ids = features['id']
         values = features['value']
 
+        iHessian = self.iHessian  # TODO check this
         prediction = self._predict(theta, features)
-        dtheta = weight * (prediction - label) * values
+        dtheta = weight * iHessian[ids] * (prediction - label) * values
         self.dtheta[ids] = dtheta
         self._prev_ids = ids.copy()
 
