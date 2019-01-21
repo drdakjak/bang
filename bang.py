@@ -20,27 +20,5 @@ def bang(quadratic_interactions, bit_precision):
         model.partial_fit(row)
         print(model.example_counter, model.average_loss)
 
-    # rows = [
-    #     "1 0.0001 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1",
-    #     "0 1.0 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1"]
-    # rows *= 200
-    # rows_iterator = lines_transformer(, quadratic_interactions)
-
-    # model.fit(rows_iterator)
-
-    # rows = [
-    #     "1 1.0 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1",
-    #     "0 1.0 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1"]
-    # rows *= 200
-    # rows_iterator = lines_transformer(rows, quadratic_interactions)
-    #
-    # prds = []
-    # for row in tqdm(rows_iterator):
-    #     prd = model.sample_predict(row)
-    #     prds.append(prd)
-    # mean = sum(prds) / len(prds)
-    # mean
-
-
 if __name__ == "__main__":
     bang()

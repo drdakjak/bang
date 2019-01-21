@@ -104,7 +104,7 @@ class LogisticBang:
         ids = features['id']
         values = features['value']
 
-        iHessian = self.iHessian  # TODO check this
+        iHessian = self.iHessian  # TODO check this update with reg
         prediction = self._predict(theta, features)
         dtheta = weight * iHessian[ids] * (prediction - label) * values
         self.dtheta[ids] = dtheta
