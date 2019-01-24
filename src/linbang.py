@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import Counter
 
 import numpy as np
 from scipy import optimize
@@ -7,7 +8,8 @@ from .utils import Rows, Row, Array, Float32
 
 
 class LogisticBang:
-    def __init__(self, feature_range: int, init_reg: float) -> None:
+    def __init__(self, bit_precision: int, init_reg: float) -> None:
+        feature_range = 2 ** bit_precision
         self._theta = np.zeros((feature_range + 1,), dtype=np.float32)
         self._dtheta = np.zeros((feature_range + 1,), dtype=np.float32)
         self._iHessian = np.zeros((feature_range + 1,), dtype=np.float32)
@@ -32,15 +34,15 @@ class LogisticBang:
         # else:
         #     self._incremental_laplace_approx(row)
         self._incremental_laplace_approx(row)
-        print(self.average_loss, np.var(self.iHessian[self._prev_ids]))
 
     def _incremental_laplace_approx(self, row):
         self.example_counter += 1
         label, weight, _, features = row
-        prev_theta = self.theta
 
-        theta = self._compute_theta(prev_theta, label, weight, features)
-        loss = self._compute_loss(theta, label, weight, features)
+        prediction = self._predict(self.theta, features)
+
+        theta = self._compute_theta(prediction, label, weight, features)
+        loss = self._compute_loss(prediction, label, weight)
 
         self.theta = theta
         self.loss += loss
@@ -55,22 +57,23 @@ class LogisticBang:
         self.theta = theta
         self.loss += loss
 
-    def _compute_theta(self, theta: Array, label: Float32, weight: Float32, features: Array):
-        self._update_iHessian(theta=theta,
+    def _compute_theta(self, prediction: Array, label: Float32, weight: Float32, features: Array):
+        self._update_iHessian(prediction=prediction,
                               features=features,
                               weight=weight)
         iHessian = self.iHessian
 
-        self._update_dtheta(theta=theta,
+        self._update_dtheta(prediction=prediction,
                             label=label,
                             features=features,
                             weight=weight)
         dtheta = self.dtheta
 
-        theta = theta - iHessian * dtheta
+        theta = self.theta - iHessian * dtheta
         return theta
 
-    def predict(self, features: Array) -> Float32:
+    def predict(self, row: Array) -> Float32:
+        label, weight, _, features = row
         theta = self.theta
         prediction = self._predict(theta, features)
         return prediction
@@ -99,29 +102,26 @@ class LogisticBang:
         self._update_dtheta(theta, label, features, weight)
         return self.dtheta
 
-    def _update_dtheta(self, theta: Array, label: Float32, features: Array, weight: Float32) -> None:
+    def _update_dtheta(self, prediction: Array, label: Float32, features: Array, weight: Float32) -> None:
         self.dtheta[self._prev_ids] = 0
         ids = features['id']
         values = features['value']
 
         iHessian = self.iHessian  # TODO check this update with reg
-        prediction = self._predict(theta, features)
-        dtheta = weight * iHessian[ids] * (prediction - label) * values
+        dtheta = weight * (prediction - label) * values
         self.dtheta[ids] = dtheta
         self._prev_ids = ids.copy()
 
-    def _update_iHessian(self, theta: Array, features: Array, weight: Float32) -> None:
+    def _update_iHessian(self, prediction: Array, features: Array, weight: Float32) -> None:
         ids = features['id']
         values = features['value']
 
-        prediction = self._predict(theta, features)
         update = weight * prediction * (1 - prediction) * values ** 2
-        multiplier = 1 / (1 + update * self.iHessian[ids] * update)
-        iHvviH = self.iHessian[ids] * update * update * self.iHessian[ids]
+        multiplier = 1 / (1 + update * self.iHessian.take(ids) * update)
+        iHvviH = self.iHessian.take(ids) * update * update * self.iHessian.take(ids)
         self.iHessian[ids] -= multiplier * iHvviH
 
-    def _compute_loss(self, theta: Array, label: Float32, weight: Float32, features: Array):
-        prediction = self._predict(theta, features)
+    def _compute_loss(self, prediction: Array, label: Float32, weight: Float32):
         logloss = self._logloss(label, prediction, weight)
         return logloss
 

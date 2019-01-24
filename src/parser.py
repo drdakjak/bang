@@ -79,9 +79,12 @@ def line_transformer(line: str, quadratic_interactions: List[str]) -> Row:
     return label, weight, tag, features
 
 
-def lines_transformer(lines: List[str], quadratic_interactions: List[str]) -> Rows:
+def lines_transformer(lines: List[str], quadratic_interactions: List[str], bit_precision: int) -> Rows:
+    hasher.range = 2 ** bit_precision
+
     fn = partial(line_transformer, quadratic_interactions=quadratic_interactions)
     with Pool(5) as pool:
         for transformed_row in pool.imap(fn, lines):
             label, weight, tag, features = transformed_row
             yield label, weight, tag, features
+
