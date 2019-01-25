@@ -1,5 +1,6 @@
 from __future__ import annotations
-from collections import Counter
+
+import pickle
 
 import numpy as np
 from scipy import optimize
@@ -9,6 +10,7 @@ from .utils import Rows, Row, Array, Float32
 
 class LogisticBang:
     def __init__(self, bit_precision: int, init_reg: float) -> None:
+        self.bit_precision = bit_precision
         feature_range = 2 ** bit_precision
         self._theta = np.zeros((feature_range + 1,), dtype=np.float32)
         self._dtheta = np.zeros((feature_range + 1,), dtype=np.float32)
@@ -18,6 +20,36 @@ class LogisticBang:
         self.example_counter = 0
         self.loss = 0
         self._prev_ids = []
+
+    def predict(self, row: Array) -> Float32:
+        label, weight, _, features = row
+        theta = self.theta
+        prediction = self._predict(theta, features)
+
+        # logloss = self._logloss(label, prediction, weight)
+        return prediction#, logloss
+
+    def sample_predict(self, row: Array) -> Float32:
+        label, weight, _, features = row
+        ids = features['id']
+        values = features['value']
+        theta = self.theta
+        iHessian = self.iHessian
+
+        sample = np.random.randn(values.shape[0])
+        sample_theta = sample * iHessian[ids] + theta[ids]
+        x = sample_theta.T.dot(values)
+        prediction = self._sigmoid(x)
+
+        # logloss = self._logloss(label, prediction, weight)
+        return prediction#, logloss
+
+    def _predict(self, theta: Array, features: Array) -> Float32:
+        ids = features['id']
+        values = features['value']
+        x = theta[ids].T.dot(values)
+        prediction = self._sigmoid(x)
+        return prediction
 
     def fit(self, rows: Rows) -> LogisticBang:
         for row in rows:
@@ -41,11 +73,8 @@ class LogisticBang:
 
         prediction = self._predict(self.theta, features)
 
-        theta = self._compute_theta(prediction, label, weight, features)
-        loss = self._compute_loss(prediction, label, weight)
-
-        self.theta = theta
-        self.loss += loss
+        self._update_theta(prediction, label, weight, features)
+        self._update_loss(prediction, label, weight)
 
     def _mode(self, row):
         label, weight, _, features = row
@@ -57,46 +86,22 @@ class LogisticBang:
         self.theta = theta
         self.loss += loss
 
-    def _compute_theta(self, prediction: Array, label: Float32, weight: Float32, features: Array):
+    def _update_theta(self, prediction: Array, label: Float32, weight: Float32, features: Array):
         self._update_iHessian(prediction=prediction,
+                              label=label,
                               features=features,
                               weight=weight)
-        iHessian = self.iHessian
 
         self._update_dtheta(prediction=prediction,
                             label=label,
                             features=features,
                             weight=weight)
         dtheta = self.dtheta
-
-        theta = self.theta - iHessian * dtheta
-        return theta
-
-    def predict(self, row: Array) -> Float32:
-        label, weight, _, features = row
-        theta = self.theta
-        prediction = self._predict(theta, features)
-        return prediction
-
-    def sample_predict(self, row: Array) -> Float32:
-        label, weight, _, features = row
-        ids = features['id']
-        values = features['value']
-        theta = self.theta
         iHessian = self.iHessian
 
-        sample = np.random.randn(values.shape[0])
-        sample_theta = sample * iHessian[ids] + theta[ids]
-        x = sample_theta.T.dot(values)
-        prediction = self._sigmoid(x)
-        return prediction
-
-    def _predict(self, theta: Array, features: Array) -> Float32:
         ids = features['id']
-        values = features['value']
-        x = theta[ids].T.dot(values)
-        prediction = self._sigmoid(x)
-        return prediction
+        # self.theta[ids] -= dtheta[ids]
+        self.theta[ids] -= iHessian[ids] * dtheta[ids]
 
     def _compute_dtheta(self, theta: Array, label: Float32, weight: Float32, features: Array) -> Array:
         self._update_dtheta(theta, label, features, weight)
@@ -112,23 +117,35 @@ class LogisticBang:
         self.dtheta[ids] = dtheta
         self._prev_ids = ids.copy()
 
-    def _update_iHessian(self, prediction: Array, features: Array, weight: Float32) -> None:
+    def _update_iHessian(self, prediction: Array, label: Float32, features: Array, weight: Float32) -> None:
         ids = features['id']
         values = features['value']
 
-        update = weight * prediction * (1 - prediction) * values ** 2
-        multiplier = 1 / (1 + update * self.iHessian.take(ids) * update)
-        iHvviH = self.iHessian.take(ids) * update * update * self.iHessian.take(ids)
-        self.iHessian[ids] -= multiplier * iHvviH
+        v = weight * prediction * (1 - prediction) * values ** 2
+        # v = weight * (prediction - label) * values
 
-    def _compute_loss(self, prediction: Array, label: Float32, weight: Float32):
+        iHessian = self.iHessian.take(ids)
+        norm = (1 + v * iHessian * v)
+        iHvviH = iHessian * v * v * iHessian
+        self.iHessian[ids] -= iHvviH/norm
+
+    def _update_loss(self, prediction: Array, label: Float32, weight: Float32):
         logloss = self._logloss(label, prediction, weight)
-        return logloss
+        self.loss += logloss
+
+    def dump(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.__dict__, f)
+
+    def load(self, path):
+        with open(path, "rb") as f:
+            attrs = pickle.load(f)
+        self.__dict__.update(attrs)
 
     @staticmethod
     def _logloss(y: Float32, p: Float32, weight: Float32, eps=1e-15):
         p = np.clip(p, eps, 1 - eps)
-        return -(y * np.log(p) + (1 - y) * np.log(1 - p)) * weight
+        return -np.log(p) * weight if y else - np.log(1 - p) * weight
 
     @property
     def theta(self) -> Array:
@@ -164,4 +181,4 @@ class LogisticBang:
 
     @property
     def average_loss(self) -> float:
-        return self.loss / self.example_counter
+        return self.loss / max(self.example_counter, 1)
