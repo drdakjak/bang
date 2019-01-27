@@ -5,6 +5,21 @@ import sys
 from src.linbang import LogisticBang
 from src.parser import hasher, lines_transformer
 
+
+def validate_progress(ctx, param, value):
+    try:
+        if value.isdigit():
+            return int(value)
+        try:
+            return float(value)
+        except:
+            raise ValueError
+    except ValueError:
+        raise click.BadParameter(
+            'Error: Invalid value for "-P" / "--progress": {} is not a valid integer/float'.format(value))
+
+
+
 def print_header(bit_precision, sigma, quadratic_interactions):
     out = "Num weight bits = {}\n".format(bit_precision)
     sys.stdout.write(out)
@@ -25,36 +40,50 @@ def print_header(bit_precision, sigma, quadratic_interactions):
 
 @click.command()
 @click.option('-q', '--quadratic', 'quadratic_interactions', default='', multiple=True, type=str)
-@click.option('-b', '--bit_precision', 'bit_precision', default=23, type=int)
-@click.option('-t', '--testonly', 'testonly', default=False, type=bool)
-@click.option('-s', '--sigma', 'sigma', default=0.01, type=float)
-@click.option('-m', '--predict_mode', 'predict_mode', default=True, type=bool)
-def bang(quadratic_interactions, bit_precision, testonly, predict_mode, sigma):
-    print_header(bit_precision, sigma, quadratic_interactions)
-    model = LogisticBang(bit_precision, sigma)
+@click.option('-b', '--bit_precision', 'bit_precision', default=9, type=int)
+@click.option('-t', '--testonly/--learn', 'testonly', default=False)
+@click.option('--l2', 'reg', default=2, type=float)
+@click.option('-m', '--mode/--sampling', 'mode', default=True)
+@click.option('-f', '--final_regressor', 'final_regressor', default='', type=click.Path(exists=False))
+@click.option('-i', '--initial_regressor', 'initial_regressor', default='', type=click.Path(exists=False))
+@click.option('-P', '--progress', 'progress', callback=validate_progress, default="1000")
+@click.option('--quiet/--no-quiet', 'quiet', default=False)
+def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, final_regressor,
+         initial_regressor, quiet):
+    print_header(bit_precision, reg, quadratic_interactions)
+    model = LogisticBang(bit_precision, reg)
 
-    with open("./data/rcv1.test.vw") as f:
-        rows = f.readlines()[:5000]
+    with open("./data/datasets/rcv1.train.vw") as f:
+        rows = f.readlines()  # [:500000]
 
     rows_iterator = lines_transformer(rows, quadratic_interactions, bit_precision)
-    for row in rows_iterator:
-        model.partial_fit(row)
-    model.predict(row)
+    for i, row in enumerate(rows_iterator):
+        if mode:
+            prediction = model.predict(row)
+        else:
+            prediction = model.sample_predict(row)
 
+        if not testonly:
+            model.partial_fit(row)
 
-    # rows = [
-    #     "1 1.0 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1",
-    #     "0 1.0 zebra|MetricFeatures:3.28 height:1.5 length:2.0|etricFeatures2:3.28 height2:1.5 length2:2.0 width2:1|tricFeatures2:3.28 height2:1.5 length2:2.0 width2:1"]
-    # rows *= 200
-    # rows_iterator = lines_transformer(rows, quadratic_interactions)
-    #
-    # prds = []
-    # for row in tqdm(rows_iterator):
-    #     prd = model.sample_predict(row)
-    #     prds.append(prd)
-    # mean = sum(prds) / len(prds)
-    # mean
+        label, weight, _, features = row
+        if not i % progress:
+            if quiet:
+                out = "%.4f" % prediction + "\n"
+                sys.stdout.write(out)
+            else:
+                out = "%.4f" % model.average_loss + "\t\t" + str(model.example_counter) + "\t\t" + str(weight) + "\t\t"
+                out += str(label) + "\t\t" + "%.4f" % prediction + "\t\t" + str(len(features)) + "\n"
+                sys.stdout.write(out)
+            if isinstance(progress, float):
+                progress *= progress
 
+    model
 
 if __name__ == "__main__":
+    import pickle
+
+    with open("./data/models/model1.pkl", "rb") as f:
+        d = pickle.load(f)
+    d
     bang()

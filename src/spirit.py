@@ -1,14 +1,22 @@
 import numpy as np
 from tqdm import tqdm
-from utils import Array, Float32
+
+from .utils import Array, Float32
+
+from src.parser import lines_transformer
 
 
-class Spirit():
-    def __init__(self, n_features: int, k_hidden: int, d: float, lambda_: Float32, dynamic_k: bool) -> None:
+class Transformer:
+    def fit_transform(self, x: Array) -> Array:
+        return x
+
+
+class Spirit(Transformer):
+    def __init__(self, bit_precision: int, k_hidden: int, d: float, lambda_: Float32, fixed_k: bool = False) -> None:
         self.k_hidden = k_hidden
-        self.dynamic_k = dynamic_k
-        self.n_features = n_features
-        self.W = np.eye(N=n_features, M=k_hidden, dtype=np.float32)
+        self.fixed_k = fixed_k
+        self.n_features = 2 ** bit_precision
+        self.W = np.eye(N=self.n_features, M=k_hidden, dtype=np.float32)
         self.ds = np.empty((k_hidden,), dtype=np.float32)
         self.ds.fill(np.float32(d))
         self.d = d
@@ -39,26 +47,26 @@ class Spirit():
         return self.y
 
     def fit_transform(self, x: Array) -> Array:
-        self.E = self.compute_energy(x)
+        self.E = self._compute_energy(x)
         y = self.partial_fit(x)
-        E_hat = self.compute_reconstruction_energy(y)
-        if self.dynamic_k:
-            self.update_k_hidden(self.E, E_hat)
+        E_hat = self._compute_reconstruction_energy(y)
+        if not self.fixed_k:
+            self._update_k_hidden(self.E, E_hat)
         return y
 
-    def compute_energy(self, x):
+    def _compute_energy(self, x):
         E = (self.n_iter - 1) * self.E + np.linalg.norm(x)
         return E / self.n_iter
 
-    def compute_reconstruction_energy(self, ys):
+    def _compute_reconstruction_energy(self, ys):
         for i, y in enumerate(ys):
             E_hat = (self.n_iter - 1) * self.E_hat[i] + y ** 2
             self.E_hat[i] = E_hat / self.n_iter
         return self.E_hat.sum()
 
-    def update_k_hidden(self, E, E_hat):
+    def _update_k_hidden(self, E, E_hat):
         if E_hat < self.energy_lower_bound * E:
-            eye = np.eye(N=self.n_features, M=1, k=-self.k_hidden-1)
+            eye = np.eye(N=self.n_features, M=1, k=-self.k_hidden - 1)
             self.W = np.append(self.W, eye, axis=1)
             self.ds = np.append(self.ds, [self.d])
             self.y = np.append(self.y, [0])
@@ -78,9 +86,12 @@ class Spirit():
 if __name__ == "__main__":
     N = 10000
     F, K = 1000, 1
-    X = np.random.randn(N, F).astype(np.float32)
+    with open("./data/rcv1.test.vw") as f:
+        rows = f.readlines()[:5000]
 
-    spirit = Spirit(n_features=F, k_hidden=2, d=0.0005, lambda_=1, dynamic_k=False)
+    rows_iterator = lines_transformer(rows, quadratic_interactions, bit_precision)
+
+    spirit = Spirit(n_features=F, k_hidden=2, d=0.0005, lambda_=1, fixed_k=False)
 
     Y = []
     for i, x in tqdm(enumerate(X)):
