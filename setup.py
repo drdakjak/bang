@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='bang',
     version='0.1',
-    py_modules=['yourscript'],
+    py_modules=['bang'],
     install_requires=[
         'Click',
         'numpy',
@@ -13,6 +13,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        yourscript=yourscript:cli
+        bang=bang:bang
     ''',
 )
