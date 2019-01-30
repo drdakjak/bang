@@ -83,7 +83,7 @@ def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, f
 if __name__ == "__main__":
     import pickle
 
-    with open("./data/models/model1.pkl", "rb") as f:
-        d = pickle.load(f)
-    d
+    # with open("./data/models/model1.pkl", "rb") as f:
+    #     d = pickle.load(f)
+    # d
     bang()

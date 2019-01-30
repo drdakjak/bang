@@ -74,7 +74,8 @@ def quadratic_combinator(comb: Tuple[Feature, Feature]) -> Feature:
 def line_transformer(line: str, quadratic_interactions: List[str]) -> Row:
     parsed_line = parser(line)
     label, weight, tag, namespaces = parsed_line
-    label = 0 if label == '-1' else label
+
+    label = 0 if label == -1 else label
     features = generate_features(namespaces, quadratic_interactions)
     features = np.array(features, dtype=[("id", np.int), ("value", np.float32)])
     return label, weight, tag, features
