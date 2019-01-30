@@ -1,9 +1,9 @@
+from functools import partial
 from itertools import product
 from multiprocessing import Pool
-from functools import partial
 
-import xxhash
 import numpy as np
+import xxhash
 
 from src.utils import *
 
@@ -12,7 +12,7 @@ def hasher(label: str) -> int:
     return xxhash.xxh64_intdigest(label) % hasher.range
 
 
-def parse_feature(label: str, value: str) -> Feature:
+def parse_feature(label: str, value: str = 1.0) -> Feature:
     return hasher(label), np.float32(value)
 
 

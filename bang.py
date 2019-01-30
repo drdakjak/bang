@@ -20,7 +20,7 @@ def validate_progress(ctx, param, value):
         return 1
 
 
-def print_header(bit_precision, reg, quadratic_interactions):
+def get_header(bit_precision, reg, quadratic_interactions):
     out = "Num weight bits = {}\n".format(bit_precision)
     sys.stdout.write(out)
 
@@ -35,24 +35,27 @@ def print_header(bit_precision, reg, quadratic_interactions):
     out += "current" + "\n"
     out += "loss" + "\t\t" + "counter" + "\t\t" + "weight" + "\t\t" + "label" + "\t\t" + "predict" + "\t\t"
     out += "features" + "\n"
-    sys.stdout.write(out)
+    return out
 
 
 @click.command()
 @click.option('-q', '--quadratic', 'quadratic_interactions', default='', multiple=True, type=str)
 @click.option('-b', '--bit_precision', 'bit_precision', default=23, type=int)
+@click.option('-p', '--predictions', 'predictions_output_path', default='/dev/stdout', type=click.Path(exists=False))
 @click.option('-t', '--testonly/--learn', 'testonly', default=False)
 @click.option('--l2', 'reg', default=2, type=float)
 @click.option('-m', '--mode/--sampling', 'mode', default=True)
 @click.option('-f', '--final_regressor', 'final_regressor', default='', type=click.Path(exists=False))
 @click.option('-i', '--initial_regressor', 'initial_regressor', default='', type=click.Path(exists=False))
-@click.option('-P', '--progress', 'progress', callback=validate_progress)
+@click.option('-P', '--progress', 'progress', callback=validate_progress, default="100")
 @click.option('--quiet/--no-quiet', 'quiet', default=False)
 def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, final_regressor,
-         initial_regressor, quiet):
+         initial_regressor, quiet, predictions_output_path):
+    output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
 
     if not quiet:
-        print_header(bit_precision, reg, quadratic_interactions)
+        out = get_header(bit_precision, reg, quadratic_interactions)
+        output_file.write(out)
 
     # feature_transformer = Spirit(bit_precision)
     model = LogisticBang(bit_precision, reg)
@@ -65,24 +68,26 @@ def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, f
             prediction = model.predict(row)
         else:
             prediction = model.sample_predict(row)
+        out = str(prediction) + "\n"
+        if quiet:
+            output_file.write(out)
 
         if not testonly:
             model.partial_fit(row)
 
         label, weight, _, features = row
         if not i % progress:
-            if quiet:
-                out = "%.4f" % prediction + "\n"
-                sys.stdout.write(out)
-            else:
+            if not quiet:
                 out = "%.4f" % model.average_loss + "\t\t" + str(model.example_counter) + "\t\t" + str(weight) + "\t\t"
                 out += str(label) + "\t\t" + "%.4f" % prediction + "\t\t" + str(len(features)) + "\n"
-                sys.stdout.write(out)
+                output_file.write(out)
             if isinstance(progress, float):
                 progress *= progress
 
     if final_regressor:
         model.dump(final_regressor)
+
+    output_file.close()
 
 
 if __name__ == "__main__":
