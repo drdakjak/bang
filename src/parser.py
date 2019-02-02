@@ -18,10 +18,12 @@ def parse_feature(label: str, value: str = 1.0) -> Feature:
 
 def parse_namespace(namespace: List) -> Tuple[str, Namespace]:
     namespace, *features = namespace.split(" ")
-    return namespace[0], tuple(map(lambda f: parse_feature(*f.split(":")), features))
+    namespace = namespace[0]
+    return namespace, tuple(map(lambda f: parse_feature(*f.split(":")), features))
 
 
-def parser(row: str) -> Tuple[Float32, Float32, Any, Namespaces]:
+def parser(row: str, keep_namespaces: Set[str], ignore_namespaces: Set[str]) -> Tuple[
+    Float32, Float32, Any, Namespaces]:
     meta, *namespaces = row.split("|")
     meta = meta.strip()
     meta = meta.split(" ")
@@ -33,7 +35,18 @@ def parser(row: str) -> Tuple[Float32, Float32, Any, Namespaces]:
         label, weight, tag = meta
 
     # namespaces = dict(parser.pool.map(parse_namespace, namespaces))
-    namespaces = dict([parse_namespace(namespace) for namespace in namespaces])
+    namespaces = dict([parse_namespace(namespace) for namespace in namespaces
+                       if not namespace[0]  # not namespace
+                       or (
+                               (
+                                       not keep_namespaces # empty keep_namespaces
+                                       or namespace[0] in keep_namespaces # namespace in keep_namespaces
+                               )
+                               and (
+                                       not ignore_namespaces # empty ignore_namespaces
+                                       or namespace[0] not in ignore_namespaces # namespace not in ignore_namespace
+                               )
+                       )])
     return np.float32(label), np.float32(weight), tag, namespaces
 
 
@@ -71,8 +84,9 @@ def quadratic_combinator(comb: Tuple[Feature, Feature]) -> Feature:
     return hasher(str(label1) + "^" + str(label2)), value1 * value2
 
 
-def line_transformer(line: str, quadratic_interactions: List[str]) -> Row:
-    parsed_line = parser(line)
+def line_transformer(line: str, quadratic_interactions: List[str], keep_namespaces: Set[str],
+                     ignore_namespaces: Set[str]) -> Row:
+    parsed_line = parser(line, keep_namespaces, ignore_namespaces)
     label, weight, tag, namespaces = parsed_line
 
     label = 0 if label == -1 else label
@@ -81,12 +95,13 @@ def line_transformer(line: str, quadratic_interactions: List[str]) -> Row:
     return label, weight, tag, features
 
 
-def lines_transformer(lines: List[str], quadratic_interactions: List[str], bit_precision: int) -> Rows:
+def lines_transformer(lines: List[str], quadratic_interactions: List[str], bit_precision: int,
+                      keep_namespaces: Set[str], ignore_namespaces: Set[str]) -> Rows:
     hasher.range = 2 ** bit_precision
 
-    fn = partial(line_transformer, quadratic_interactions=quadratic_interactions)
+    fn = partial(line_transformer, quadratic_interactions=quadratic_interactions, keep_namespaces=keep_namespaces,
+                 ignore_namespaces=ignore_namespaces)
     with Pool(5) as pool:
         for transformed_row in pool.imap(fn, lines):
             label, weight, tag, features = transformed_row
             yield label, weight, tag, features
-

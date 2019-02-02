@@ -4,7 +4,6 @@ import click
 
 from src.linbang import LogisticBang
 from src.parser import lines_transformer
-from src.spirit import Spirit
 
 
 def validate_progress(ctx, param, value):
@@ -20,7 +19,15 @@ def validate_progress(ctx, param, value):
         return 1
 
 
-def get_header(bit_precision, reg, quadratic_interactions):
+def get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces):
+    if ignore_namespaces:
+        out = "Ignoring namespaces beginning with: {}\n".join(','.join(ignore_namespaces))
+        sys.stdout.write(out)
+
+    if keep_namespaces:
+        out = "Using namespaces beginning with: {}\n".join(','.join(keep_namespaces))
+        sys.stdout.write(out)
+
     out = "Num weight bits = {}\n".format(bit_precision)
     sys.stdout.write(out)
 
@@ -40,6 +47,8 @@ def get_header(bit_precision, reg, quadratic_interactions):
 
 @click.command()
 @click.option('-q', '--quadratic', 'quadratic_interactions', default='', multiple=True, type=str)
+@click.option('--keep', 'keep_namespaces', default='', multiple=True, type=str)
+@click.option('--ignore', 'ignore_namespaces', default='', multiple=True, type=str)
 @click.option('-b', '--bit_precision', 'bit_precision', default=23, type=int)
 @click.option('-p', '--predictions', 'predictions_output_path', default='/dev/stdout', type=click.Path(exists=False))
 @click.option('-t', '--testonly/--learn', 'testonly', default=False)
@@ -49,12 +58,17 @@ def get_header(bit_precision, reg, quadratic_interactions):
 @click.option('-i', '--initial_regressor', 'initial_regressor', default='', type=click.Path(exists=False))
 @click.option('-P', '--progress', 'progress', callback=validate_progress, default="100")
 @click.option('--quiet/--no-quiet', 'quiet', default=False)
+@click.option('--input_path', 'input_path', default='/dev/stdin', type=click.Path(exists=False))
 def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, final_regressor,
-         initial_regressor, quiet, predictions_output_path):
+         initial_regressor, quiet, predictions_output_path, keep_namespaces, ignore_namespaces, input_path):
     output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
+    # input_file = click.get_text_stream('stdin') if '/dev/stdin' in input_path else open(input_path, 'r')
+    # input_file = click.get_text_stream('stdin') if '/dev/stdin' in input_path else open(input_path, 'r')
+    input_file = open(input_path, 'r')
+
 
     if not quiet:
-        out = get_header(bit_precision, reg, quadratic_interactions)
+        out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
         output_file.write(out)
 
     # feature_transformer = Spirit(bit_precision)
@@ -62,8 +76,9 @@ def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, f
     if initial_regressor:
         model.load(initial_regressor)
 
-    rows = click.get_text_stream('stdin')
-    for i, row in enumerate(lines_transformer(rows, quadratic_interactions, bit_precision)):
+    for i, row in enumerate(
+            lines_transformer(input_file, quadratic_interactions, bit_precision, set(keep_namespaces),
+                              set(ignore_namespaces))):
         if mode:
             prediction = model.predict(row)
         else:
@@ -88,6 +103,7 @@ def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, f
         model.dump(final_regressor)
 
     output_file.close()
+    input_file.close()
 
 
 if __name__ == "__main__":
