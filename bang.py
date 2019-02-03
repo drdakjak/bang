@@ -21,17 +21,17 @@ def validate_progress(ctx, param, value):
 
 def get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces):
     if ignore_namespaces:
-        out = "Ignoring namespaces beginning with: {}\n".join(','.join(ignore_namespaces))
+        out = "Ignoring namespaces beginning with: {}\n".format(' '.join(ignore_namespaces))
         sys.stdout.write(out)
 
     if keep_namespaces:
-        out = "Using namespaces beginning with: {}\n".join(','.join(keep_namespaces))
+        out = "Using namespaces beginning with: {}\n".format(' '.join(keep_namespaces - ignore_namespaces))
         sys.stdout.write(out)
 
     out = "Num weight bits = {}\n".format(bit_precision)
     sys.stdout.write(out)
 
-    out = "Initial reg = {}\n".format(reg)
+    out = "Using initial l2 regularization = {}\n".format(reg)
     sys.stdout.write(out)
 
     if quadratic_interactions:
@@ -76,9 +76,10 @@ def bang(quadratic_interactions='',
          keep_namespaces=[],
          ignore_namespaces=[],
          input_path='/dev/stdin'):
-
-    output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
+    output_file = open(predictions_output_path, 'w' if '/dev/stdout' == predictions_output_path else "a+")
     input_file = open(input_path, 'r')
+    keep_namespaces = set(''.join(keep_namespaces))
+    ignore_namespaces = set(''.join(ignore_namespaces))
 
     if not quiet:
         out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
@@ -90,8 +91,7 @@ def bang(quadratic_interactions='',
         model.load(initial_regressor)
 
     for i, row in enumerate(
-            lines_transformer(input_file, quadratic_interactions, bit_precision, set(keep_namespaces),
-                              set(ignore_namespaces))):
+            lines_transformer(input_file, quadratic_interactions, bit_precision, keep_namespaces, ignore_namespaces)):
         if mode:
             prediction = model.predict(row)
         else:
@@ -120,4 +120,4 @@ def bang(quadratic_interactions='',
 
 
 if __name__ == "__main__":
-    bang()
+    cli()
