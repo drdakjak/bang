@@ -153,7 +153,7 @@ class LogisticBang:
         logloss = self._logloss(label, prediction, weight)
         self.loss += logloss
 
-    def dump(self, path):
+    def save(self, path):
         with open(path, 'wb') as f:
             pickle.dump(self.__dict__, f)
 

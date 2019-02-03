@@ -76,47 +76,55 @@ def bang(quadratic_interactions='',
          keep_namespaces=[],
          ignore_namespaces=[],
          input_path='/dev/stdin'):
-    output_file = open(predictions_output_path, 'w' if '/dev/stdout' == predictions_output_path else "a+")
-    input_file = open(input_path, 'r')
-    keep_namespaces = set(''.join(keep_namespaces))
-    ignore_namespaces = set(''.join(ignore_namespaces))
+    try:
+        output_file = open(predictions_output_path, 'w' if '/dev/stdout' == predictions_output_path else "a+")
+        input_file = open(input_path, 'r')
+        keep_namespaces = set(''.join(keep_namespaces))
+        ignore_namespaces = set(''.join(ignore_namespaces))
 
-    if not quiet:
-        out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
-        output_file.write(out)
-
-    # feature_transformer = Spirit(bit_precision)
-    model = LogisticBang(bit_precision, reg)
-    if initial_regressor:
-        model.load(initial_regressor)
-
-    for i, row in enumerate(
-            lines_transformer(input_file, quadratic_interactions, bit_precision, keep_namespaces, ignore_namespaces)):
-        if mode:
-            prediction = model.predict(row)
-        else:
-            prediction = model.sample_predict(row)
-        out = str(prediction) + "\n"
-        if quiet:
+        if not quiet:
+            out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
             output_file.write(out)
 
-        if not testonly:
-            model.partial_fit(row)
+        # feature_transformer = Spirit(bit_precision)
+        model = LogisticBang(bit_precision, reg)
+        if initial_regressor:
+            model.load(initial_regressor)
 
-        label, weight, _, features = row
-        if not i % progress:
-            if not quiet:
-                out = "%.4f" % model.average_loss + "\t\t" + str(model.example_counter) + "\t\t" + str(weight) + "\t\t"
-                out += str(label) + "\t\t" + "%.4f" % prediction + "\t\t" + str(len(features)) + "\n"
+        for i, row in enumerate(lines_transformer(input_file=input_file,
+                                                  quadratic_interactions=quadratic_interactions,
+                                                  bit_precision=bit_precision,
+                                                  keep_namespaces=keep_namespaces,
+                                                  ignore_namespaces=ignore_namespaces)):
+
+            prediction = model.predict(row) if mode else model.sample_predict(row)
+
+            out = str(prediction) + "\n"
+            if quiet:
                 output_file.write(out)
-            if isinstance(progress, float):
-                progress *= progress
 
-    if final_regressor:
-        model.dump(final_regressor)
+            if not testonly:
+                model.partial_fit(row)
 
-    output_file.close()
-    input_file.close()
+            label, weight, _, features = row
+            if not i % progress:
+                if not quiet:
+                    out = "%.4f" % model.average_loss + "\t\t" + str(model.example_counter) + "\t\t" + str(
+                        weight) + "\t\t"
+                    out += str(label) + "\t\t" + "%.4f" % prediction + "\t\t" + str(len(features)) + "\n"
+                    output_file.write(out)
+                if isinstance(progress, float):
+                    progress *= progress
+
+        if final_regressor:
+            model.save(final_regressor)
+
+    except KeyboardInterrupt:
+        if final_regressor:
+            model.save(final_regressor)
+    finally:
+        output_file.close()
+        input_file.close()
 
 
 if __name__ == "__main__":
