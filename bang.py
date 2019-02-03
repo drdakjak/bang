@@ -59,13 +59,26 @@ def get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, igno
 @click.option('-P', '--progress', 'progress', callback=validate_progress, default="100")
 @click.option('--quiet/--no-quiet', 'quiet', default=False)
 @click.option('--input_path', 'input_path', default='/dev/stdin', type=click.Path(exists=False))
-def bang(quadratic_interactions, bit_precision, testonly, mode, reg, progress, final_regressor,
-         initial_regressor, quiet, predictions_output_path, keep_namespaces, ignore_namespaces, input_path):
-    output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
-    # input_file = click.get_text_stream('stdin') if '/dev/stdin' in input_path else open(input_path, 'r')
-    # input_file = click.get_text_stream('stdin') if '/dev/stdin' in input_path else open(input_path, 'r')
-    input_file = open(input_path, 'r')
+def cli(**kwargs):
+    bang(**kwargs)
 
+
+def bang(quadratic_interactions='',
+         bit_precision=23,
+         testonly=False,
+         mode=True,
+         reg=2,
+         progress=100,
+         final_regressor='',
+         initial_regressor='',
+         quiet=False,
+         predictions_output_path='/dev/stdout',
+         keep_namespaces=[],
+         ignore_namespaces=[],
+         input_path='/dev/stdin'):
+
+    output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
+    input_file = open(input_path, 'r')
 
     if not quiet:
         out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)

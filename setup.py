@@ -14,6 +14,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        bang=bang:bang
+        bang=bang:cli
     ''',
 )
