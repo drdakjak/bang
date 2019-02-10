@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, Dict, Set
+from typing import List, Tuple, Any, Dict, Set, Iterable
 
 from numpy import ndarray, float32
 

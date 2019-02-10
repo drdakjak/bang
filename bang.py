@@ -1,9 +1,11 @@
-import sys
+import os
 
 import click
+from tqdm import tqdm
 
 from src.linbang import LogisticBang
 from src.parser import lines_transformer
+from src.transformer import Identity
 
 
 def validate_progress(ctx, param, value):
@@ -19,29 +21,32 @@ def validate_progress(ctx, param, value):
         return 1
 
 
-def get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces):
+def get_parametrization(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces):
+    out = ''
     if ignore_namespaces:
-        out = "Ignoring namespaces beginning with: {}\n".format(' '.join(ignore_namespaces))
-        sys.stdout.write(out)
+        out += "Ignoring namespaces beginning with: {}\n".format(' '.join(ignore_namespaces))
 
     if keep_namespaces:
-        out = "Using namespaces beginning with: {}\n".format(' '.join(keep_namespaces - ignore_namespaces))
-        sys.stdout.write(out)
+        out += "Using namespaces beginning with: {}\n".format(' '.join(keep_namespaces - ignore_namespaces))
 
-    out = "Num weight bits = {}\n".format(bit_precision)
-    sys.stdout.write(out)
+    out += "Num weight bits = {}\n".format(bit_precision)
 
-    out = "Using initial l2 regularization = {}\n".format(reg)
-    sys.stdout.write(out)
-
+    out += "Using initial l2 regularization = {}\n".format(reg)
     if quadratic_interactions:
-        out = "Quadratic interactions = {}\n".format(', '.format(quadratic_interactions))
-        sys.stdout.write(out)
+        out += "Quadratic interactions = {}\n".format(', '.join(quadratic_interactions))
+    return out
 
-    out = "average" + "\t\t" + "example" + "\t\t" + "example" + "\t\t" + "current" + "\t\t" + "current" + "\t\t"
-    out += "current" + "\n"
-    out += "loss" + "\t\t" + "counter" + "\t\t" + "weight" + "\t\t" + "label" + "\t\t" + "predict" + "\t\t"
-    out += "features" + "\n"
+
+def get_header():
+    out = ''
+    out += "{}\t\t{}\t\t{}\t\t{}\t\t{}\t\t{}\n".format("average", "example", "example", "current", "current", "current")
+    out += "{}\t\t{}\t\t{}\t\t{}\t\t{}\t\t{}\n".format("loss", "counter", "weight", "label", "predict", "features")
+    return out
+
+
+def get_line(**kwargs):
+    out = "{average_loss:.4f}\t\t{example_counter}\t\t{weight:.4f}\t\t{label}\t\t{prediction:.4f}\t\t{len_features}\n"
+    out = out.format(**kwargs)
     return out
 
 
@@ -52,12 +57,13 @@ def get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, igno
 @click.option('-b', '--bit_precision', 'bit_precision', default=23, type=int)
 @click.option('-p', '--predictions', 'predictions_output_path', default='/dev/stdout', type=click.Path(exists=False))
 @click.option('-t', '--testonly/--learn', 'testonly', default=False)
+@click.option('--profiling/--not-profiling', 'profiling', default=False)
 @click.option('--l2', 'reg', default=2, type=float)
 @click.option('-m', '--mode/--sampling', 'mode', default=True)
 @click.option('-f', '--final_regressor', 'final_regressor', default='', type=click.Path(exists=False))
 @click.option('-i', '--initial_regressor', 'initial_regressor', default='', type=click.Path(exists=False))
 @click.option('-P', '--progress', 'progress', callback=validate_progress, default="100")
-@click.option('--quiet/--no-quiet', 'quiet', default=False)
+@click.option('--quiet/--not-quiet', 'quiet', default=False)
 @click.option('--input_path', 'input_path', default='/dev/stdin', type=click.Path(exists=False))
 def cli(**kwargs):
     bang(**kwargs)
@@ -72,49 +78,70 @@ def bang(quadratic_interactions='',
          final_regressor='',
          initial_regressor='',
          quiet=False,
+         profiling=False,
          predictions_output_path='/dev/stdout',
          keep_namespaces=[],
          ignore_namespaces=[],
          input_path='/dev/stdin'):
+    """
+
+    :param quadratic_interactions:
+    :param bit_precision:
+    :param testonly:
+    :param mode:
+    :param reg:
+    :param progress:
+    :param final_regressor:
+    :param initial_regressor:
+    :param quiet:
+    :param predictions_output_path:
+    :param keep_namespaces:
+    :param ignore_namespaces:
+    :param input_path:
+    :return:
+    """
     try:
-        output_file = open(predictions_output_path, 'w' if '/dev/stdout' == predictions_output_path else "a+")
+        output_file = open(predictions_output_path, 'w' if '/dev/stdout' in predictions_output_path else "a+")
         input_file = open(input_path, 'r')
         keep_namespaces = set(''.join(keep_namespaces))
         ignore_namespaces = set(''.join(ignore_namespaces))
 
         if not quiet:
-            out = get_header(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
+            out = get_parametrization(bit_precision, reg, quadratic_interactions, keep_namespaces, ignore_namespaces)
+            output_file.write(out)
+            out = get_header()
             output_file.write(out)
 
         # feature_transformer = Spirit(bit_precision)
-        model = LogisticBang(bit_precision, reg)
+        feature_transformer = Identity()
+        model = LogisticBang(bit_precision=bit_precision, init_reg=reg, transformer=feature_transformer)
         if initial_regressor:
             model.load(initial_regressor)
 
-        for i, row in enumerate(lines_transformer(input_file=input_file,
-                                                  quadratic_interactions=quadratic_interactions,
-                                                  bit_precision=bit_precision,
-                                                  keep_namespaces=keep_namespaces,
-                                                  ignore_namespaces=ignore_namespaces)):
-
-            prediction = model.predict(row) if mode else model.sample_predict(row)
-
-            out = str(prediction) + "\n"
-            if quiet:
+        for i, row in tqdm(enumerate(lines_transformer(lines=input_file,
+                                                       quadratic_interactions=quadratic_interactions,
+                                                       bit_precision=bit_precision,
+                                                       keep_namespaces=keep_namespaces,
+                                                       ignore_namespaces=ignore_namespaces)
+                                     ), disable=not profiling):
+            if quiet and not profiling:
+                prediction = model.predict(row) if mode else model.sample_predict(row)
+                out = "{}\n".format(prediction)
                 output_file.write(out)
+
+            elif not i % progress:
+                label, weight, _, features = row
+                prediction = model.predict(row) if mode else model.sample_predict(row)
+                out = get_line(average_loss=model.average_loss, example_counter=model.example_counter,
+                               weight=weight, label=label, prediction=prediction, len_features=len(features))
+                if profiling:
+                    output_file.write("\n")
+                output_file.write(out)
+                if isinstance(progress, float):
+                    progress *= progress
 
             if not testonly:
                 model.partial_fit(row)
-
-            label, weight, _, features = row
-            if not i % progress:
-                if not quiet:
-                    out = "%.4f" % model.average_loss + "\t\t" + str(model.example_counter) + "\t\t" + str(
-                        weight) + "\t\t"
-                    out += str(label) + "\t\t" + "%.4f" % prediction + "\t\t" + str(len(features)) + "\n"
-                    output_file.write(out)
-                if isinstance(progress, float):
-                    progress *= progress
 
         if final_regressor:
             model.save(final_regressor)
@@ -128,4 +155,8 @@ def bang(quadratic_interactions='',
 
 
 if __name__ == "__main__":
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
     cli()

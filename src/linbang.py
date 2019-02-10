@@ -5,12 +5,12 @@ import pickle
 import numpy as np
 from scipy import optimize
 
-from .spirit import Transformer
+from .transformer import Transformer
 from .utils import Rows, Row, Array, Float32
 
 
 class LogisticBang:
-    def __init__(self, bit_precision: int, init_reg: float, transformer=Transformer(), eps: float = 1e-15) -> None:
+    def __init__(self, bit_precision: int, init_reg: float, transformer: Transformer, eps: float = 1e-15) -> None:
         self.bit_precision = bit_precision
         feature_range = 2 ** bit_precision
         self._eps = eps
@@ -23,7 +23,7 @@ class LogisticBang:
         self.loss = 0
         self._prev_ids = []
         self.transformer = transformer
-        np.seterr(divide="raise")
+        np.seterr(all="raise")
 
     def predict(self, row: Array) -> Float32:
         label, weight, _, features = row
@@ -99,7 +99,7 @@ class LogisticBang:
 
     def _update_theta(self, prediction: Array, label: Float32, weight: Float32, features: Array):
         # update based on https://arxiv.org/abs/1605.05697 (https://www.diigo.com/item/pdf/65klm/dhwi)
-        self._prev_theta = self.theta.copy()
+        # self._prev_theta = self.theta.copy()
         self._update_iHessian(prediction=prediction,
                               label=label,
                               features=features,
@@ -126,7 +126,9 @@ class LogisticBang:
 
         variance = weight * prediction * (1 - prediction)
 
-        norm = variance / (1 + variance * values * iHessian * values)
+        # norm = variance / (1 + variance * values * iHessian * values)
+        norm = variance / (1 + variance * (values * iHessian * values).sum())
+
         iHvviH = iHessian * values * values * iHessian
         update = norm * iHvviH
         iHessian_updated = iHessian - update
@@ -164,7 +166,7 @@ class LogisticBang:
 
     def _logloss(self, y: Float32, p: Float32, weight: Float32):
         p = np.clip(p, self._eps, 1 - self._eps)
-        return -np.log(p) * weight if y else - np.log(1 - p) * weight
+        return -np.log(p) * weight if y else -np.log(1 - p) * weight
 
     @property
     def theta(self) -> Array:

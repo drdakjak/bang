@@ -39,12 +39,12 @@ def parser(row: str, keep_namespaces: Set[str], ignore_namespaces: Set[str]) -> 
                        if not namespace[0]  # not namespace
                        or (
                                (
-                                       not keep_namespaces # empty keep_namespaces
-                                       or namespace[0] in keep_namespaces # namespace in keep_namespaces
+                                       not keep_namespaces  # empty keep_namespaces
+                                       or namespace[0] in keep_namespaces  # namespace in keep_namespaces
                                )
                                and (
-                                       not ignore_namespaces # empty ignore_namespaces
-                                       or namespace[0] not in ignore_namespaces # namespace not in ignore_namespace
+                                       not ignore_namespaces  # empty ignore_namespaces
+                                       or namespace[0] not in ignore_namespaces  # namespace not in ignore_namespace
                                )
                        )])
     return np.float32(label), np.float32(weight), tag, namespaces
@@ -95,13 +95,13 @@ def line_transformer(line: str, quadratic_interactions: List[str], keep_namespac
     return label, weight, tag, features
 
 
-def lines_transformer(lines: List[str], quadratic_interactions: List[str], bit_precision: int,
+def lines_transformer(lines: Iterable[str], quadratic_interactions: List[str], bit_precision: int,
                       keep_namespaces: Set[str], ignore_namespaces: Set[str]) -> Rows:
     hasher.range = 2 ** bit_precision
 
     fn = partial(line_transformer, quadratic_interactions=quadratic_interactions, keep_namespaces=keep_namespaces,
                  ignore_namespaces=ignore_namespaces)
-    with Pool(5) as pool:
+    with Pool(2) as pool:
         for transformed_row in pool.imap(fn, lines):
             label, weight, tag, features = transformed_row
             yield label, weight, tag, features

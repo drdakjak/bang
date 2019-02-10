@@ -1,12 +1,16 @@
 import numpy as np
 from tqdm import tqdm
 
-from .utils import Array, Float32
-
 from src.parser import lines_transformer
+from .utils import Array, Float32
 
 
 class Transformer:
+    def fit_transform(self, x: Array) -> Array:
+        pass
+
+
+class Identity(Transformer):
     def fit_transform(self, x: Array) -> Array:
         return x
 
