@@ -151,8 +151,7 @@ class LogisticBang:
         # dtheta = reg * estimate + weight * (prediction - label) * values
 
         dtheta = weight * (label - prediction) * values
-        print(dtheta.min())
-#         dtheta = np.clip(dtheta, a_min=1e-30, a_max=np.inf)
+        dtheta = self.clip_real_array(dtheta)
         
         self.dtheta[ids] = dtheta
         self._prev_ids = ids
@@ -209,3 +208,9 @@ class LogisticBang:
     @property
     def average_loss(self) -> float:
         return self.loss / max(self.example_counter, 1)
+    
+    @staticmethod
+    def clip_real_array(a):
+        sign = np.sign(a)
+        clip = np.clip(np.abs(a), a_min=1e-20, a_max=np.inf)
+        return sign*clip
