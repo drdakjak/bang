@@ -135,6 +135,8 @@ class LogisticBang:
         
         update = norm * iHvviH
         iHessian_updated = iHessian - update
+        iHessian_updated = np.clip(iHessian_updated, a_min=self._eps, a_max=np.inf)
+        
         self.iHessian[ids] = iHessian_updated
 
     def _update_dtheta(self, prediction: Array, label: Float32, features: Array, weight: Float32) -> None:
@@ -149,7 +151,8 @@ class LogisticBang:
         # dtheta = reg * estimate + weight * (prediction - label) * values
 
         dtheta = weight * (label - prediction) * values
-
+        dtheta = np.clip(dtheta, a_min=self._eps, a_max=np.inf)
+        
         self.dtheta[ids] = dtheta
         self._prev_ids = ids
 
