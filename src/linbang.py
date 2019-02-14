@@ -128,11 +128,13 @@ class LogisticBang:
 
         # norm = variance / (1 + variance * values * iHessian * values)
         norm = variance / (1 + variance * (values * iHessian * values).sum())
+        norm = np.clip(norm, a_min=self._eps, a_max=np.inf)
 
         iHvviH = iHessian * values * values * iHessian
+        iHvviH = np.clip(iHvviH, a_min=self._eps, a_max=np.inf)
+        
         update = norm * iHvviH
         iHessian_updated = iHessian - update
-        iHessian_updated = np.clip(iHessian_updated, a_min=self._eps, a_max=np.inf)
         self.iHessian[ids] = iHessian_updated
 
     def _update_dtheta(self, prediction: Array, label: Float32, features: Array, weight: Float32) -> None:
