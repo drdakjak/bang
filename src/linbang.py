@@ -151,7 +151,8 @@ class LogisticBang:
         # dtheta = reg * estimate + weight * (prediction - label) * values
 
         dtheta = weight * (label - prediction) * values
-        dtheta = np.clip(dtheta, a_min=1e-30, a_max=np.inf)
+        print(dtheta.min())
+#         dtheta = np.clip(dtheta, a_min=1e-30, a_max=np.inf)
         
         self.dtheta[ids] = dtheta
         self._prev_ids = ids
