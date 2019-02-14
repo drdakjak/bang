@@ -10,7 +10,7 @@ from .utils import Rows, Row, Array, Float32
 
 
 class LogisticBang:
-    def __init__(self, bit_precision: int, init_reg: float, transformer: Transformer, eps: float = 1e-20) -> None:
+    def __init__(self, bit_precision: int, init_reg: float, transformer: Transformer, eps: float = 1e-15) -> None:
         self.bit_precision = bit_precision
         feature_range = 2 ** bit_precision
         self._eps = eps
@@ -151,7 +151,7 @@ class LogisticBang:
         # dtheta = reg * estimate + weight * (prediction - label) * values
 
         dtheta = weight * (label - prediction) * values
-        dtheta = np.clip(dtheta, a_min=self._eps, a_max=np.inf)
+#         dtheta = np.clip(dtheta, a_min=self._eps, a_max=np.inf)
         
         self.dtheta[ids] = dtheta
         self._prev_ids = ids
