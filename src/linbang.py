@@ -131,11 +131,11 @@ class LogisticBang:
         norm = np.clip(norm, a_min=self._eps, a_max=np.inf)
 
         iHvviH = iHessian * values * values * iHessian
-        iHvviH = np.clip(iHvviH, a_min=self._eps, a_max=np.inf)
+        iHvviH = np.clip(iHvviH, a_min=1e-20, a_max=np.inf)
         
         update = norm * iHvviH
         iHessian_updated = iHessian - update
-        iHessian_updated = np.clip(iHessian_updated, a_min=self._eps, a_max=np.inf)
+        iHessian_updated = np.clip(iHessian_updated, a_min=1e-20, a_max=np.inf)
         
         self.iHessian[ids] = iHessian_updated
 
@@ -151,7 +151,7 @@ class LogisticBang:
         # dtheta = reg * estimate + weight * (prediction - label) * values
 
         dtheta = weight * (label - prediction) * values
-#         dtheta = np.clip(dtheta, a_min=self._eps, a_max=np.inf)
+        dtheta = np.clip(dtheta, a_min=1e-20, a_max=np.inf)
         
         self.dtheta[ids] = dtheta
         self._prev_ids = ids
